@@ -13,7 +13,12 @@ from functions import (
     generate_chat_prompt, format_context, 
     read_pdf_from_uploaded_file, read_txt_from_uploaded_file, read_csv_from_uploaded_file
 )
+from dotenv import load_dotenv
+load_dotenv()
+
+
 PROFILE_NAME = os.environ.get("AWS_PROFILE", "edn174")
+PASSWORD = os.getenv("PASSWORD")
 
 INFERENCE_PROFILE_ARN = "arn:aws:bedrock:us-east-1:851614451056:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0"
 
@@ -44,7 +49,7 @@ def add_javascript():
 
 #alterar
 st.set_page_config(
-   page_title="NOME DA PÁGINA",
+   page_title="SAFEPAY",
    page_icon="logo.jpeg",
    layout="wide",
    initial_sidebar_state="expanded"
@@ -93,10 +98,10 @@ def query_bedrock(message, session_id="", model_params=None, context=""):
     #ALTERAR
     if model_params is None:
         model_params = {
-            "temperature": 1.0,
-            "top_p": 0.85,
-            "top_k": 200,
-            "max_tokens": 800,
+            "temperature": 0.5,
+            "top_p": 0.80,
+            "top_k": 150,
+            "max_tokens": 4096,
             "response_format": {"type": "text"}
         }
     
@@ -162,8 +167,8 @@ def check_password():
         """Checks whether a password entered by the user is correct."""
         print(f"DEBUG LOGIN: Tentativa de login - Usuário: '{st.session_state['username']}', Senha: '{st.session_state['password']}'")
         
-        if hmac.compare_digest(st.session_state["username"].strip(), "admin") and \
-        hmac.compare_digest(st.session_state["password"].strip(), "admin123"):
+        if hmac.compare_digest(st.session_state["username"].strip(), "safepay") and \
+        hmac.compare_digest(st.session_state["password"].strip(), PASSWORD):
             print("DEBUG LOGIN: Autenticação bem-sucedida")
             st.session_state["password_correct"] = True
             st.session_state["auth_cookie"] = {
@@ -923,7 +928,8 @@ if check_password():
                 if st.button("🗑️", key=f"delete_{idx}", help="Excluir conversa"):
                     delete_chat(idx)
     
-        use_rag = st.checkbox("Usar Contexto Adicional (RAG)", value=st.session_state.use_rag)
+        # use_rag = st.checkbox("Usar Contexto Adicional (RAG)", value=st.session_state.use_rag)
+        use_rag = st.checkbox("Usar Contexto Adicional (RAG)", value=False)
         st.session_state.use_rag = use_rag
 
         if use_rag:
@@ -990,10 +996,10 @@ if check_password():
             st.text_area("Mensagem", placeholder="Digite sua mensagem aqui...", key="user_input", 
                 height=70, label_visibility="collapsed")
 
-        with col2:
-            file_to_send = st.file_uploader("Anexar arquivo", type=["pdf", "txt", "csv", "doc", "docx", "xls", "xlsx"], 
-                                        key="file_to_send", label_visibility="collapsed")
-            st.markdown('<div class="attach-icon" title="Anexar arquivo"><i class="fas fa-paperclip"></i></div>', unsafe_allow_html=True)
+        # with col2:
+        #     file_to_send = st.file_uploader("Anexar arquivo", type=["pdf", "txt", "csv", "doc", "docx", "xls", "xlsx"], 
+        #                                 key="file_to_send", label_visibility="collapsed")
+        #     st.markdown('<div class="attach-icon" title="Anexar arquivo"><i class="fas fa-paperclip"></i></div>', unsafe_allow_html=True)
 
         with col3:
             if st.button("Enviar", key="send_button", use_container_width=True):
