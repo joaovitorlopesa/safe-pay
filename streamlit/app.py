@@ -13,12 +13,7 @@ from functions import (
     generate_chat_prompt, format_context, 
     read_pdf_from_uploaded_file, read_txt_from_uploaded_file, read_csv_from_uploaded_file
 )
-from dotenv import load_dotenv
-load_dotenv()
-
-
-PROFILE_NAME = os.environ.get("AWS_PROFILE", "edn174")
-PASSWORD = os.getenv("PASSWORD")
+PROFILE_NAME = os.environ.get("AWS_PROFILE", "")
 
 INFERENCE_PROFILE_ARN = "arn:aws:bedrock:us-east-1:851614451056:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0"
 
@@ -49,7 +44,7 @@ def add_javascript():
 
 #alterar
 st.set_page_config(
-   page_title="SAFEPAY",
+   page_title="SafePay",
    page_icon="logo.jpeg",
    layout="wide",
    initial_sidebar_state="expanded"
@@ -63,7 +58,7 @@ def preprocess_user_message(message):
     """
     return message
 
-def get_boto3_client(service_name, region_name='us-east-1', profile_name='edn174'):
+def get_boto3_client(service_name, region_name='us-east-1', profile_name=''):
     """
     Retorna um cliente do serviço AWS especificado.
     
@@ -91,7 +86,7 @@ def get_boto3_client(service_name, region_name='us-east-1', profile_name='edn174
             print(f"ERRO: Falha ao criar cliente boto3: {str(e)}")
             return None
 
-def query_bedrock(message, session_id="", model_params=None, context=""):
+def query_bedrock(message, session_id="", model_params=None, context="", conversation_history=None):
     """
     Envia uma mensagem para o Amazon Bedrock com parâmetros de modelo específicos.
     """
@@ -99,7 +94,7 @@ def query_bedrock(message, session_id="", model_params=None, context=""):
     if model_params is None:
         model_params = {
             "temperature": 0.5,
-            "top_p": 0.80,
+            "top_p": 0.8,
             "top_k": 150,
             "max_tokens": 4096,
             "response_format": {"type": "text"}
@@ -114,7 +109,7 @@ def query_bedrock(message, session_id="", model_params=None, context=""):
         }
     
     try:
-        prompt = generate_chat_prompt(message, context=context)
+        prompt = generate_chat_prompt(message, conversation_history=conversation_history, context=context)
         
         body = json.dumps({
             "anthropic_version": "bedrock-2023-05-31",
@@ -167,8 +162,8 @@ def check_password():
         """Checks whether a password entered by the user is correct."""
         print(f"DEBUG LOGIN: Tentativa de login - Usuário: '{st.session_state['username']}', Senha: '{st.session_state['password']}'")
         
-        if hmac.compare_digest(st.session_state["username"].strip(), "safepay") and \
-        hmac.compare_digest(st.session_state["password"].strip(), PASSWORD):
+        if hmac.compare_digest(st.session_state["username"].strip(), "safepay-admin") and \
+        hmac.compare_digest(st.session_state["password"].strip(), "grupo9-admin"):
             print("DEBUG LOGIN: Autenticação bem-sucedida")
             st.session_state["password_correct"] = True
             st.session_state["auth_cookie"] = {
@@ -346,7 +341,7 @@ def handle_message():
                     else:
                         combined_context = rag_context
                     
-                    result = query_bedrock(user_message, current_session_id, context=combined_context)
+                    result = query_bedrock(user_message, current_session_id, context=combined_context, conversation_history=st.session_state.messages)
                 
                 if result:
                     assistant_message = result.get('answer', 'Não foi possível obter uma resposta.')
@@ -482,7 +477,7 @@ def regenerate_message(index):
     status_placeholder.info("Regenerando resposta...")
     
     with st.spinner():
-        result = query_bedrock(user_message, st.session_state.session_id)
+        result = query_bedrock(user_message, st.session_state.session_id, conversation_history=st.session_state.messages)
         
     if result:
         new_response = result.get('answer', 'Não foi possível regenerar a resposta.')
@@ -819,7 +814,7 @@ def handle_message_with_input(user_input):
                 with st.spinner():
                     current_session_id = "" if is_first_message else st.session_state.session_id
                     rag_context = get_rag_context()
-                    result = query_bedrock(user_input, current_session_id, context=rag_context)
+                    result = query_bedrock(user_input, current_session_id, context=rag_context, conversation_history=st.session_state.messages)
                 
                 if result:
                     assistant_message = result.get('answer', 'Não foi possível obter uma resposta.')
@@ -908,7 +903,7 @@ if check_password():
         with col1:
             st.image(logo_path, width=50)
         with col2:
-            st.markdown('<h2 style="margin-top: 0;">Chat IA</h2>', unsafe_allow_html=True)
+            st.markdown('<h2 style="margin-top: 0;">SafePay</h2>', unsafe_allow_html=True)
         
         st.divider()
         
@@ -928,39 +923,38 @@ if check_password():
                 if st.button("🗑️", key=f"delete_{idx}", help="Excluir conversa"):
                     delete_chat(idx)
     
-        # use_rag = st.checkbox("Usar Contexto Adicional (RAG)", value=st.session_state.use_rag)
-        use_rag = st.checkbox("Usar Contexto Adicional (RAG)", value=False)
-        st.session_state.use_rag = use_rag
+        #use_rag = st.checkbox("Usar Contexto Adicional (RAG)", value=False)
+        #st.session_state.use_rag = use_rag
 
-        if use_rag:
-            rag_source = st.radio(
-                "Fonte do Contexto",
-                ("Arquivo", "Texto Direto"),
-                index=("Arquivo", "Texto Direto").index(st.session_state.rag_source)
-            )
-            st.session_state.rag_source = rag_source
+        #if use_rag:
+        #    rag_source = st.radio(
+        #        "Fonte do Contexto",
+        #        ("Arquivo", "Texto Direto"),
+        #        index=("Arquivo", "Texto Direto").index(st.session_state.rag_source)
+        #    )
+        #    st.session_state.rag_source = rag_source
 
-            if rag_source == "Arquivo":
-                file_type = st.selectbox(
-                    "Tipo de Arquivo",
-                    ("PDF", "TXT", "CSV"),
-                    index=("PDF", "TXT", "CSV").index(st.session_state.file_type)
-                )
-                st.session_state.file_type = file_type
-                uploaded_file = st.file_uploader(f"Carregar Arquivo {file_type}", type=file_type, key="file_uploader")
-                st.session_state.uploaded_file = uploaded_file
+        #    if rag_source == "Arquivo":
+        #        file_type = st.selectbox(
+        #            "Tipo de Arquivo",
+        #            ("PDF", "TXT", "CSV"),
+        #            index=("PDF", "TXT", "CSV").index(st.session_state.file_type)
+        #        )
+        #        st.session_state.file_type = file_type
+        #        uploaded_file = st.file_uploader(f"Carregar Arquivo {file_type}", type=file_type, key="file_uploader")
+        #        st.session_state.uploaded_file = uploaded_file
 
-            elif rag_source == "Texto Direto":
-                direct_text = st.text_area(
-                    "Inserir Texto de Contexto", 
-                    value=st.session_state.get('direct_text', ''),
-                    height=150, 
-                    key="direct_text"
-                )
-            st.divider()
+        #    elif rag_source == "Texto Direto":
+        #        direct_text = st.text_area(
+        #            "Inserir Texto de Contexto", 
+        #            value=st.session_state.get('direct_text', ''),
+        #            height=150, 
+        #            key="direct_text"
+        #        )
+        #    st.divider()
 
-            if st.button("Logout", use_container_width=True):
-                logout()
+        #    if st.button("Logout", use_container_width=True):
+        #        logout()
 
     main_col1, main_col2, main_col3 = st.columns([1, 10, 1])
     
@@ -990,16 +984,17 @@ if check_password():
         
         st.markdown('<div class="input-container">', unsafe_allow_html=True)
 
-        col1, col2, col3 = st.columns([5, 1, 1])
+        col1, col3 = st.columns([5, 1])
 
         with col1:
             st.text_area("Mensagem", placeholder="Digite sua mensagem aqui...", key="user_input", 
                 height=70, label_visibility="collapsed")
 
-        # with col2:
-        #     file_to_send = st.file_uploader("Anexar arquivo", type=["pdf", "txt", "csv", "doc", "docx", "xls", "xlsx"], 
-        #                                 key="file_to_send", label_visibility="collapsed")
-        #     st.markdown('<div class="attach-icon" title="Anexar arquivo"><i class="fas fa-paperclip"></i></div>', unsafe_allow_html=True)
+        
+        #with col2:
+        #    file_to_send = st.file_uploader("Anexar arquivo", type=["pdf", "txt", "csv", "doc", "docx", "xls", "xlsx"], 
+        #                                key="file_to_send", label_visibility="collapsed")
+        #    st.markdown('<div class="attach-icon" title="Anexar arquivo"><i class="fas fa-paperclip"></i></div>', unsafe_allow_html=True)
 
         with col3:
             if st.button("Enviar", key="send_button", use_container_width=True):
